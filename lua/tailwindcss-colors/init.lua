@@ -1,25 +1,7 @@
 -- Credits: contains some code snippets from https://github.com/norcalli/nvim-colorizer.lua
 local bit = require("bit")
 
-local function lsp_color_to_hex(color)
-  local function to256(c)
-    return math.floor(c * color.alpha * 255)
-  end
-  return bit.tohex(bit.bor(bit.lshift(to256(color.red), 16), bit.lshift(to256(color.green), 8), to256(color.blue)), 6)
-end
-
--- Determine whether to use black or white text
--- Ref: https://stackoverflow.com/a/1855903/837964
--- https://stackoverflow.com/questions/596216/formula-to-determine-brightness-of-rgb-color
-local function color_is_bright(r, g, b)
-  -- Counting the perceptive luminance - human eye favors green color
-  local luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-  if luminance > 0.5 then
-    return true -- Bright colors, black font
-  else
-    return false -- Dark colors, white font
-  end
-end
+local colors = require("tailwindcss-colors.colors")
 
 local NAMESPACE = vim.api.nvim_create_namespace("lsp_documentColor")
 local HIGHLIGHT_NAME_PREFIX = "lsp_documentColor"
@@ -49,7 +31,7 @@ local function create_highlight(rgb_hex, options)
     local r, g, b = rgb_hex:sub(1, 2), rgb_hex:sub(3, 4), rgb_hex:sub(5, 6)
     r, g, b = tonumber(r, 16), tonumber(g, 16), tonumber(b, 16)
     local fg_color
-    if color_is_bright(r, g, b) then
+    if colors.color_is_bright(r, g, b) then
       fg_color = "Black"
     else
       fg_color = "White"
@@ -63,11 +45,11 @@ end
 
 local ATTACHED_BUFFERS = {}
 
-local function buf_set_highlights(bufnr, colors, options)
+local function buf_set_highlights(bufnr, lsp_colors, options)
   vim.api.nvim_buf_clear_namespace(bufnr, NAMESPACE, 0, -1)
 
-  for _, color_info in pairs(colors) do
-    local rgb_hex = lsp_color_to_hex(color_info.color)
+  for _, color_info in pairs(lsp_colors) do
+    local rgb_hex = colors.lsp_color_to_hex(color_info.color)
     local highlight_name = create_highlight(rgb_hex, options)
 
     local range = color_info.range
@@ -110,7 +92,7 @@ function M.buf_attach(bufnr, options)
   options = options or {}
 
   -- VSCode extension also does 200ms debouncing
-  local trigger_update_highlight, timer = require("defer").debounce_trailing(
+  local trigger_update_highlight, timer = require("tailwindcss-colorsdefer").debounce_trailing(
     M.update_highlight,
     options.debounce or 200,
     false
