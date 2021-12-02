@@ -2,9 +2,10 @@
 local colors = require("tailwindcss-colors.colors")
 
 -- NOTE: should only create a namespace if it's not already created when attaching to a buffer
-local NAMESPACE = vim.api.nvim_create_namespace("lsp_documentColor")
--- NOTE: why do we need a prefix anyways? (to differenticate our highlights from other plugins?)
-local HIGHLIGHT_NAME_PREFIX = "lsp_documentColor"
+local NAMESPACE = vim.api.nvim_create_namespace("tailwindcss-colors")
+
+-- Prefix ensures names do not collide with other plugins
+local HIGHLIGHT_NAME_PREFIX = "tailwindcss-colors"
 local HIGHLIGHT_MODE_NAMES = { background = "mb", foreground = "mf" }
 
 -- This table is used to store the names of highlight colors that have already
@@ -36,6 +37,8 @@ local function create_highlight(rgb_hex, options)
   if mode == "foreground" then
     vim.api.nvim_command(string.format("highlight %s guifg=#%s", highlight_name, rgb_hex))
   else
+    -- NOTE: we already had these numbers before, and are now converting back to them
+    -- we should run this algorithm earlier and attach information about brightness
     local r, g, b = rgb_hex:sub(1, 2), rgb_hex:sub(3, 4), rgb_hex:sub(5, 6)
     r, g, b = tonumber(r, 16), tonumber(g, 16), tonumber(b, 16)
     local fg_color
@@ -51,21 +54,80 @@ local function create_highlight(rgb_hex, options)
   return highlight_name
 end
 
+-- Stores attached buffers that we are in the process of highlightings
 local ATTACHED_BUFFERS = {}
 
-local function buf_set_highlights(bufnr, lsp_colors, options)
-  vim.api.nvim_buf_clear_namespace(bufnr, NAMESPACE, 0, -1)
+-- Stores latest hashed color data received from the LSP for each buffer
+-- hashing is done to save space and make comparisons faster
+-- this allows us to limit updates to buffer highlights
+--
+-- since hashing is annoying due to the data being unordered
+-- we can just create a string based on converted color data
+-- this will still allow us to limit buffer highlight updates
+-- but will require color reprocessing
+--
+-- once color info is converted, we can store packed data for comparisons
+-- could also even hash this data if we wanted to save on memory space and speed
+-- technically there is hasing going on already in the tables, so we use the computed data
+-- as a key, however we also need a list of active buffers
+local LSP_CACHE = {}
 
-  for _, color_info in pairs(lsp_colors) do
-    local rgb_hex = colors.lsp_color_to_hex(color_info.color)
-    local highlight_name = create_highlight(rgb_hex, options)
+-- Create a cache_key string using the data, so it can be used to lookup
+-- existing_bufs cache entries
+local function make_lsp_cache_key(lsp_data)
+  return
+    lsp_data.color.hex ..
+    "ec" ..
+    lsp_data.range["end"].character ..
+    "el" ..
+    lsp_data.range["end"].line ..
+    "sc" ..
+    lsp_data.range.start.character ..
+    "sl" ..
+    lsp_data.range.start.line
+end
 
-    local range = color_info.range
-    local line = range.start.line
-    local start_col = range.start.character
-    local end_col = options.single_column and start_col + 1 or range["end"].character
+local function buf_set_highlights(bufnr, lsp_data, options)
+  local cache_invalid = false
 
-    vim.api.nvim_buf_add_highlight(bufnr, NAMESPACE, highlight_name, line, start_col, end_col)
+  -- check to see if cache is valid, in which case we do nothing
+  for _, color_range_info in pairs(lsp_data) do
+    -- add hex color data
+    color_range_info.color = colors.lsp_color_to_hex(color_range_info.color)
+    -- compute cache key (string)
+    local cache_key = make_lsp_cache_key(color_range_info)
+
+    -- if the entry is missing, the cache is immediately considered invalid
+    if not LSP_CACHE[cache_key] then
+      cache_invalid = true
+      break
+    end
+  end
+
+  -- if the cache is invalid, color data changed in some way, so it needs to be rebuilt
+  if cache_invalid then
+    -- clear the exisiting cache
+    LSP_CACHE = {}
+    -- clear all existing highlights
+    vim.api.nvim_buf_clear_namespace(bufnr, NAMESPACE, 0, -1)
+
+    -- rebuild highlights and cache
+    for _, color_range_info in pairs(lsp_data) do
+      -- add the cache entry
+      LSP_CACHE[make_lsp_cache_key(color_range_info)] = true
+
+      -- create the highlight
+      local highlight_name = create_highlight(color_range_info.color.hex, options)
+
+      -- extract range data
+      local range = color_range_info.range
+      local line = range.start.line
+      local start_col = range.start.character
+      local end_col = options.single_column and start_col + 1 or range["end"].character
+
+      -- add the highlight to the namespace
+      vim.api.nvim_buf_add_highlight(bufnr, NAMESPACE, highlight_name, line, start_col, end_col)
+    end
   end
 end
 
