@@ -107,6 +107,7 @@ local function buf_set_highlights(bufnr, lsp_data, options)
 
   -- if the cache is invalid, color data changed in some way, so it needs to be rebuilt
   if cache_invalid then
+    print("cache invalidated resetting highlights")
     -- clear the exisiting cache
     LSP_CACHE = {}
     -- clear all existing highlights
@@ -129,6 +130,10 @@ local function buf_set_highlights(bufnr, lsp_data, options)
       -- add the highlight to the namespace
       vim.api.nvim_buf_add_highlight(bufnr, NAMESPACE, highlight_name, line, start_col, end_col)
     end
+  end
+
+  if not cache_invalid then
+    print("validated cache, nothing to do")
   end
 end
 
