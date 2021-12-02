@@ -113,6 +113,7 @@ local function buf_set_highlights(bufnr, lsp_data, options)
 
     -- rebuild highlights and cache
     for _, color_range_info in pairs(lsp_data) do
+      color_range_info.color = colors.lsp_color_to_hex(color_range_info.color)
       -- add the cache entry
       LSP_CACHE[make_lsp_cache_key(color_range_info)] = true
 
