@@ -89,11 +89,12 @@ end
 
 local function buf_set_highlights(bufnr, lsp_data, options)
   local cache_invalid = false
-
-  -- check to see if cache is valid, in which case we do nothing
-  for _, color_range_info in pairs(lsp_data) do
-    -- add hex color data
+  -- add hex data to each entry color entry
+  for _, color_range_info in ipairs(lsp_data) do
     color_range_info.color = colors.lsp_color_to_hex(color_range_info.color)
+  end
+  -- check to see if cache is valid, in which case we do nothing
+  for _, color_range_info in ipairs(lsp_data) do
     -- compute cache key (string)
     local cache_key = make_lsp_cache_key(color_range_info)
 
@@ -113,7 +114,6 @@ local function buf_set_highlights(bufnr, lsp_data, options)
 
     -- rebuild highlights and cache
     for _, color_range_info in pairs(lsp_data) do
-      color_range_info.color = colors.lsp_color_to_hex(color_range_info.color)
       -- add the cache entry
       LSP_CACHE[make_lsp_cache_key(color_range_info)] = true
 
