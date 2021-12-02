@@ -5,7 +5,7 @@ local colors = require("tailwindcss-colors.colors")
 local NAMESPACE = vim.api.nvim_create_namespace("tailwindcss-colors")
 
 -- Prefix ensures names do not collide with other plugins
-local HIGHLIGHT_NAME_PREFIX = "tailwindcss-colors"
+local HIGHLIGHT_NAME_PREFIX = "tailwindcss_colors"
 local HIGHLIGHT_MODE_NAMES = { background = "mb", foreground = "mf" }
 
 -- This table is used to store the names of highlight colors that have already
