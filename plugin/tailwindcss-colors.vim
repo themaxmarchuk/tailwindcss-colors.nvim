@@ -4,5 +4,5 @@ endif
 
 let g:loaded_tailwindcss_colors = 1
 
-command! TailwindColorsAttach lua require('tailwind_colors').buf_attach()
-command! TailwindColorsDetach lua require('tailwind_colors').buf_detach()
+command! TailwindColorsAttach lua require('tailwindcss-colors').buf_attach()
+command! TailwindColorsDetach lua require('tailwindcss-colors').buf_detach()
