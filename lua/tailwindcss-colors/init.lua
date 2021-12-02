@@ -207,11 +207,10 @@ function M.buf_attach(bufnr, options)
     on_lines = function()
       -- if the current buffer is not attached, then tell nvim to detach our function
       if not ATTACHED_BUFFERS[bufnr] then
+        print("DEATACHING FROM BUFFER!!!")
         return true
       end
       -- trigger updates to the highlights
-      -- NOTE: to make this fast AF we need to determine if there were actual changes in what
-      -- we get back from the lsp before we tear down the highlights and rebuild them!
       trigger_update_highlight(bufnr, options)
     end,
     on_detach = function()
