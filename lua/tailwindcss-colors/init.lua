@@ -116,6 +116,7 @@ local function buf_set_highlights(bufnr, lsp_data, options)
     print("cache invalidated resetting highlights")
     -- clear the exisiting cache
     LSP_CACHE = {}
+    LSP_CACHE_LENGTH = 0
     -- clear all existing highlights
     vim.api.nvim_buf_clear_namespace(bufnr, NAMESPACE, 0, -1)
 
@@ -123,6 +124,7 @@ local function buf_set_highlights(bufnr, lsp_data, options)
     for _, color_range_info in pairs(lsp_data) do
       -- add the cache entry
       LSP_CACHE[make_lsp_cache_key(color_range_info)] = true
+      LSP_CACHE_LENGTH = LSP_CACHE_LENGTH + 1
 
       -- create the highlight
       local highlight_name = create_highlight(color_range_info.color.hex, options)
