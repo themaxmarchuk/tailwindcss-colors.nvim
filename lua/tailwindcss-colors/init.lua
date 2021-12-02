@@ -71,6 +71,7 @@ local ATTACHED_BUFFERS = {}
 -- technically there is hasing going on already in the tables, so we use the computed data
 -- as a key, however we also need a list of active buffers
 local LSP_CACHE = {}
+local LSP_CACHE_LENGTH = 0
 
 -- Create a cache_key string using the data, so it can be used to lookup
 -- existing_bufs cache entries
@@ -93,15 +94,20 @@ local function buf_set_highlights(bufnr, lsp_data, options)
   for _, color_range_info in ipairs(lsp_data) do
     color_range_info.color = colors.lsp_color_to_hex(color_range_info.color)
   end
-  -- check to see if cache is valid, in which case we do nothing
-  for _, color_range_info in ipairs(lsp_data) do
-    -- compute cache key (string)
-    local cache_key = make_lsp_cache_key(color_range_info)
+  -- check the length of the cache compared to the length of lsp_data
+  if LSP_CACHE_LENGTH ~= #lsp_data then
+    cache_invalid = true
+  else
+    -- check to see if cache is valid, in which case we do nothing
+    for _, color_range_info in ipairs(lsp_data) do
+      -- compute cache key (string)
+      local cache_key = make_lsp_cache_key(color_range_info)
 
-    -- if the entry is missing, the cache is immediately considered invalid
-    if not LSP_CACHE[cache_key] then
-      cache_invalid = true
-      break
+      -- if the entry is missing, the cache is immediately considered invalid
+      if not LSP_CACHE[cache_key] then
+        cache_invalid = true
+        break
+      end
     end
   end
 
