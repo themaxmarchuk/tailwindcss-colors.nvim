@@ -3,7 +3,7 @@ local colors = require("tailwindcss-colors.colors")
 
 -- TODO: React to lsp ClearColors notification
 -- TODO: Make it more efficient (don't bother validating cache if changed lines had no highlights)
--- TODO: Rove comments, clean things up
+-- TODO: Remove comments, clean things up
 -- TODO: Improve function names and refactor
 -- TODO: Add config options for (dark color, bright color, should inject commands)
 
@@ -16,7 +16,7 @@ local HIGHLIGHT_MODE_NAMES = { background = "mb", foreground = "mf" }
 
 -- This table is used to store the names of highlight colors that have already
 -- been created, allowing us to reuse highlights even across multiple buffers,
--- cutting down on the the ammount of neovim command calls
+-- cutting down on the the amount of neovim command calls
 local HIGHLIGHT_CACHE = {}
 
 --- Make a deterministic name for a highlight given these attributes
@@ -28,7 +28,7 @@ end
 
 local function create_highlight(rgb_hex, options)
   -- pull highlight from cache if it exists to avoid any neovim commands
-  -- otherwise run the commands and stoore the name as a cache
+  -- otherwise run the commands and store the name as a cache
   local mode = options.mode or "background"
   local cache_key = table.concat({ HIGHLIGHT_MODE_NAMES[mode], rgb_hex }, "_")
   local highlight_name = HIGHLIGHT_CACHE[cache_key]
@@ -38,7 +38,7 @@ local function create_highlight(rgb_hex, options)
   end
 
   -- Create the highlight
-  -- NOTE: our highlights are only goingt o be background highlights
+  -- NOTE: our highlights are only going to be background highlights
   highlight_name = make_highlight_name(rgb_hex, mode)
   if mode == "foreground" then
     vim.api.nvim_command(string.format("highlight %s guifg=#%s", highlight_name, rgb_hex))
@@ -60,7 +60,7 @@ local function create_highlight(rgb_hex, options)
   return highlight_name
 end
 
--- Stores attached buffers that we are in the process of highlightings
+-- Stores attached buffers
 local ATTACHED_BUFFERS = {}
 
 -- Stores latest hashed color data received from the LSP for each buffer
@@ -74,7 +74,7 @@ local ATTACHED_BUFFERS = {}
 --
 -- once color info is converted, we can store packed data for comparisons
 -- could also even hash this data if we wanted to save on memory space and speed
--- technically there is hasing going on already in the tables, so we use the computed data
+-- technically there is hashing going on already in the tables, so we use the computed data
 -- as a key, however we also need a list of active buffers
 --
 -- LSP_CACHE = {
@@ -195,14 +195,13 @@ function M.buf_attach(bufnr, options)
 
   options = options or {}
 
-  -- TODO: figure out the debouncing sititation, do we really need it?
-  -- make a smart way to react, why debounce when we can just react and send a messages
-  -- to the server anyways
-  -- could do polling?
-  -- VSCode extension also does 200ms debouncing
+  -- TODO: server ready time may vary
+  -- so try sending a bunch of documentColor requests until it responds
+  -- without an error, or a timeout is reached?
+  -- NOTE: try logging in the clearColors handler to see when it's sent (maybe when the server is ready?)
   vim.defer_fn(function()
     M.update_highlight(bufnr, options)
-  end, 1000)
+  end, 300)
 
   -- setup a hook for any changes in the buffer
   vim.api.nvim_buf_attach(bufnr, false, {
