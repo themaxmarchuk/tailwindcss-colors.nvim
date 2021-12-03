@@ -3,7 +3,7 @@ local M = {}
 local bit = require("bit")
 
 -- Converts an lsp color definition to a hexadecimal string string
-M.lsp_color_to_hex = function (lsp_color)
+M.lsp_color_add_hex = function (lsp_color)
   -- converts from (0 to 1) space to (0 to 255) applying alpha
   local function to256(c)
     -- TODO: what's up with applying alpha (won't it usually be 1 anyways?)
