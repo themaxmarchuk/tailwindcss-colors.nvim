@@ -1,6 +1,12 @@
 -- Credits: contains some code snippets from https://github.com/norcalli/nvim-colorizer.lua
 local colors = require("tailwindcss-colors.colors")
 
+-- TODO: React to lsp ClearColors notification
+-- TODO: Make it more efficient (don't bother validating cache if changed lines had no highlights)
+-- TODO: Rove comments, clean things up
+-- TODO: Improve function names and refactor
+-- TODO: Add config options for (dark color, bright color, should inject commands)
+
 -- NOTE: should only create a namespace if it's not already created when attaching to a buffer
 local NAMESPACE = vim.api.nvim_create_namespace("tailwindcss-colors")
 
@@ -61,70 +67,80 @@ local ATTACHED_BUFFERS = {}
 -- hashing is done to save space and make comparisons faster
 -- this allows us to limit updates to buffer highlights
 --
--- since hashing is annoying due to the data being unordered
+-- since hashing entire objects is annoying due to the data being unordered
 -- we can just create a string based on converted color data
 -- this will still allow us to limit buffer highlight updates
--- but will require color reprocessing
+-- but will require color reprocessing (hex strings) and string concatenation
 --
 -- once color info is converted, we can store packed data for comparisons
 -- could also even hash this data if we wanted to save on memory space and speed
 -- technically there is hasing going on already in the tables, so we use the computed data
 -- as a key, however we also need a list of active buffers
+--
+-- LSP_CACHE = {
+--   [1] = { len = 1, data = {... CACHE HASH TABLE ...} },
+--   [2] = { len = 5, data = {... CACHE HASH TABLE ...} },
+-- }
 local LSP_CACHE = {}
-local LSP_CACHE_LENGTH = 0
 
 -- Create a cache_key string using the data, so it can be used to lookup
 -- existing_bufs cache entries
 local function make_lsp_cache_key(lsp_data)
   return
     lsp_data.color.hex ..
-    "ec" ..
     lsp_data.range["end"].character ..
-    "el" ..
     lsp_data.range["end"].line ..
-    "sc" ..
     lsp_data.range.start.character ..
-    "sl" ..
     lsp_data.range.start.line
 end
 
 local function buf_set_highlights(bufnr, lsp_data, options)
-  local cache_invalid = false
-  -- add hex data to each entry color entry
+  -- add hex data to each color entry
   for _, color_range_info in ipairs(lsp_data) do
-    color_range_info.color = colors.lsp_color_to_hex(color_range_info.color)
+    color_range_info.color = colors.lsp_color_add_hex(color_range_info.color)
   end
-  -- check the length of the cache compared to the length of lsp_data
-  if LSP_CACHE_LENGTH ~= #lsp_data then
+
+  local cache = LSP_CACHE[bufnr]
+  local cache_invalid = false
+
+  -- check to see if cache exists
+  if not cache then
     cache_invalid = true
   else
-    -- check to see if cache is valid, in which case we do nothing
-    for _, color_range_info in ipairs(lsp_data) do
-      -- compute cache key (string)
-      local cache_key = make_lsp_cache_key(color_range_info)
+    -- if it does, try to validate the cache
+    -- check the length of the cache compared to the length of lsp_data
+    if cache.len ~= #lsp_data then
+      cache_invalid = true
+    else
+      -- loop through the lsp_data and see if the cache contains the same data
+      for _, color_range_info in ipairs(lsp_data) do
+        -- compute cache key (string)
+        local cache_key = make_lsp_cache_key(color_range_info)
 
-      -- if the entry is missing, the cache is immediately considered invalid
-      if not LSP_CACHE[cache_key] then
-        cache_invalid = true
-        break
+        -- if the entry is missing, the cache is immediately considered invalid
+        if not cache.data[cache_key] then
+          cache_invalid = true
+          break
+        end
       end
     end
   end
 
-  -- if the cache is invalid, color data changed in some way, so it needs to be rebuilt
+  -- if the cache is invalid, it must be rebuilt, and the highlights should be updated
   if cache_invalid then
-    print("cache invalidated resetting highlights")
-    -- clear the exisiting cache
-    LSP_CACHE = {}
-    LSP_CACHE_LENGTH = 0
-    -- clear all existing highlights
+    -- clear all existing highlights in the namespace
     vim.api.nvim_buf_clear_namespace(bufnr, NAMESPACE, 0, -1)
 
-    -- rebuild highlights and cache
+    -- create a new cache table
+    LSP_CACHE[bufnr] = { len = 0, data = {} }
+    -- update the reference
+    cache = LSP_CACHE[bufnr]
+
+    -- loop through lsp_data
     for _, color_range_info in pairs(lsp_data) do
       -- add the cache entry
-      LSP_CACHE[make_lsp_cache_key(color_range_info)] = true
-      LSP_CACHE_LENGTH = LSP_CACHE_LENGTH + 1
+      cache.data[make_lsp_cache_key(color_range_info)] = true
+      cache.len = cache.len + 1
 
       -- create the highlight
       local highlight_name = create_highlight(color_range_info.color.hex, options)
@@ -138,10 +154,6 @@ local function buf_set_highlights(bufnr, lsp_data, options)
       -- add the highlight to the namespace
       vim.api.nvim_buf_add_highlight(bufnr, NAMESPACE, highlight_name, line, start_col, end_col)
     end
-  end
-
-  if not cache_invalid then
-    print("validated cache, nothing to do")
   end
 end
 
@@ -161,9 +173,6 @@ function M.update_highlight(bufnr, options)
   -- make_text_document_params will get us the current document uri
   local params = { textDocument = vim.lsp.util.make_text_document_params() }
   -- send this to the lsp, and setup a callback that will trigger a highlight update
-  -- NOTE: do not update highlights if there's nothing to update, we can save the last
-  -- results from the server as another cache, to speed things up and avoid nvim commands like
-  -- the plauge
   vim.lsp.buf_request(bufnr, "textDocument/documentColor", params, function(err, result, _, _)
     -- if there were no errors, update highlights
     if err == nil and result ~= nil then
@@ -172,7 +181,7 @@ function M.update_highlight(bufnr, options)
   end)
 end
 
--- This function attaches to a buffer and hooks for line changes
+-- This function attaches to a buffer and reacts to changes in buffer state
 function M.buf_attach(bufnr, options)
   -- if bufnr is 0 or nil, use the current buffer
   bufnr = expand_bufnr(bufnr)
@@ -184,53 +193,56 @@ function M.buf_attach(bufnr, options)
 
   ATTACHED_BUFFERS[bufnr] = true
 
-  -- if we didn't get any options make it an empty table
   options = options or {}
 
   -- TODO: figure out the debouncing sititation, do we really need it?
   -- make a smart way to react, why debounce when we can just react and send a messages
   -- to the server anyways
+  -- could do polling?
   -- VSCode extension also does 200ms debouncing
-  local trigger_update_highlight, timer = require("tailwindcss-colors.defer").debounce_trailing(
-    M.update_highlight,
-    options.debounce or 200,
-    false
-  )
-
-  -- for the first request, the server needs some time before it's ready
-  -- sometimes 200ms is not enough for this
-  -- TODO: figure out when the first request can be send
-  trigger_update_highlight(bufnr, options)
+  vim.defer_fn(function()
+    M.update_highlight(bufnr, options)
+  end, 1000)
 
   -- setup a hook for any changes in the buffer
   vim.api.nvim_buf_attach(bufnr, false, {
     on_lines = function()
       -- if the current buffer is not attached, then tell nvim to detach our function
       if not ATTACHED_BUFFERS[bufnr] then
-        print("DEATACHING FROM BUFFER!!!")
         return true
       end
-      -- trigger updates to the highlights
-      trigger_update_highlight(bufnr, options)
+      M.update_highlight(bufnr, options)
     end,
     on_detach = function()
-      -- close the timer (only need this for the debounce thing)
-      timer:close()
       -- remove buffer from attached list
       ATTACHED_BUFFERS[bufnr] = nil
+      -- delete the cache
+      LSP_CACHE[bufnr] = nil
     end,
+    on_reload = function ()
+      -- invalidate the cache
+      LSP_CACHE[bufnr] = nil
+      -- trigger an update highlight
+      M.update_highlight(bufnr, options)
+    end
   })
+end
+
+-- for debug only
+function M.print_status()
+  print(vim.inspect({ LSP_CACHE, ATTACHED_BUFFERS }))
 end
 
 -- Detaches from the buffer
 function M.buf_detach(bufnr)
   -- if bufnr is 0 or nil, use the current buffer
   bufnr = expand_bufnr(bufnr)
-  -- clear our namespace from the buffer
-  -- we can assume that since we were attached, the buffer must have our namespace
-  -- so there is no point to check (plus vim will handle the error for us :glasses:)
+  -- clear highlights
   vim.api.nvim_buf_clear_namespace(bufnr, NAMESPACE, 0, -1)
+  -- remove from attached list
   ATTACHED_BUFFERS[bufnr] = nil
+  -- delete the cache
+  LSP_CACHE[bufnr] = nil
 end
 
 return M
