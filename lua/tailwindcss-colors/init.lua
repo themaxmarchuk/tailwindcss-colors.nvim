@@ -17,6 +17,17 @@ local HIGHLIGHT_NAME_PREFIX = "tailwindcss_colors"
 -- cutting down on the the amount of neovim command calls
 local HIGHLIGHT_CACHE = {}
 
+-- Default user configuration
+local user_config = {
+  colors = {
+    dark = "#000000",  -- dark text color
+    light = "#FFFFFF", -- light test color
+  },
+  commands = true -- should add commands
+  -- TailwindColorsAttach
+  -- TailwindColorsDetach
+}
+
 local function create_highlight(color)
   -- pull highlight from cache if it exists to avoid any neovim commands
   -- otherwise run the commands and store the name as a cache
@@ -30,9 +41,9 @@ local function create_highlight(color)
   -- determine which foreground color to use (dark or light)
   local fg_color
   if colors.color_is_bright(color) then
-    fg_color = "Black"
+    fg_color = user_config.colors.dark
   else
-    fg_color = "White"
+    fg_color = user_config.colors.light
   end
 
   highlight_name = table.concat({ HIGHLIGHT_NAME_PREFIX, color.hex }, "_")
@@ -80,7 +91,7 @@ local function make_lsp_cache_key(lsp_data)
     lsp_data.range.start.line
 end
 
-local function buf_set_highlights(bufnr, lsp_data, options)
+local function buf_set_highlights(bufnr, lsp_data)
   -- add hex data to each color entry
   for _, color_range_info in ipairs(lsp_data) do
     color_range_info.color = colors.lsp_color_add_hex(color_range_info.color)
@@ -135,7 +146,7 @@ local function buf_set_highlights(bufnr, lsp_data, options)
       local range = color_range_info.range
       local line = range.start.line
       local start_col = range.start.character
-      local end_col = options.single_column and start_col + 1 or range["end"].character
+      local end_col = range["end"].character
 
       -- add the highlight to the namespace
       vim.api.nvim_buf_add_highlight(bufnr, NAMESPACE, highlight_name, line, start_col, end_col)
@@ -143,7 +154,6 @@ local function buf_set_highlights(bufnr, lsp_data, options)
   end
 end
 
-local M = {}
 
 -- Returns current buffer if we find a 0 or nil
 local function expand_bufnr(bufnr)
@@ -154,21 +164,49 @@ local function expand_bufnr(bufnr)
   end
 end
 
+-- merges tables together
+local function merge(...)
+  local res = {}
+  for i = 1,select("#", ...) do
+    local o = select(i, ...)
+    for k,v in pairs(o) do
+      res[k] = v
+    end
+  end
+  return res
+end
+
+local M = {}
+
+-- setup takes an optional plugin_config and adds commands if they are enabled
+-- otherwise default settings are used, and calling the function is only necessary
+-- if you want to add commands
+function M.setup(plugin_config)
+  -- merge passed in settings with defaults
+  user_config = merge(user_config, plugin_config or {})
+
+  if user_config.commands then
+    vim.cmd("command! TailwindColorsAttach lua require('tailwindcss-colors').buf_attach()")
+    vim.cmd("command! TailwindColorsDetach lua require('tailwindcss-colors').buf_detach()")
+    vim.cmd("command! TailwindColorsStatus lua require('tailwindcss-colors').print_status()")
+  end
+end
+
 --- Can be called to manually update the color highlighting
-function M.update_highlight(bufnr, options)
+function M.update_highlight(bufnr)
   -- make_text_document_params will get us the current document uri
   local params = { textDocument = vim.lsp.util.make_text_document_params() }
   -- send this to the lsp, and setup a callback that will trigger a highlight update
   vim.lsp.buf_request(bufnr, "textDocument/documentColor", params, function(err, result, _, _)
     -- if there were no errors, update highlights
     if err == nil and result ~= nil then
-      buf_set_highlights(bufnr, result, options)
+      buf_set_highlights(bufnr, result)
     end
   end)
 end
 
 -- This function attaches to a buffer and reacts to changes in buffer state
-function M.buf_attach(bufnr, options)
+function M.buf_attach(bufnr)
   -- if bufnr is 0 or nil, use the current buffer
   bufnr = expand_bufnr(bufnr)
 
@@ -179,12 +217,10 @@ function M.buf_attach(bufnr, options)
 
   ATTACHED_BUFFERS[bufnr] = true
 
-  options = options or {}
-
   -- 200ms debounce workaround, the server needs some time go get ready
   -- not defering for 200ms results in the server not responding at all
   vim.defer_fn(function()
-    M.update_highlight(bufnr, options)
+    M.update_highlight(bufnr)
   end, 200)
 
   -- setup a hook for any changes in the buffer
@@ -194,7 +230,7 @@ function M.buf_attach(bufnr, options)
       if not ATTACHED_BUFFERS[bufnr] then
         return true
       end
-      M.update_highlight(bufnr, options)
+      M.update_highlight(bufnr)
     end,
     on_detach = function()
       -- remove buffer from attached list
@@ -206,7 +242,7 @@ function M.buf_attach(bufnr, options)
       -- invalidate the cache
       LSP_CACHE[bufnr] = nil
       -- trigger an update highlight
-      M.update_highlight(bufnr, options)
+      M.update_highlight(bufnr)
     end
   })
 end
