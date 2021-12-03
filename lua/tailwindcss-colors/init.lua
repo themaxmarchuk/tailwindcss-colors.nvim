@@ -1,10 +1,9 @@
 -- Credits: contains some code snippets from https://github.com/norcalli/nvim-colorizer.lua
 local colors = require("tailwindcss-colors.colors")
 
--- TODO: React to lsp ClearColors notification
--- TODO: Make it more efficient (don't bother validating cache if changed lines had no highlights)
--- TODO: Remove comments, clean things up
+-- TODO: Remove some comments, clean things up
 -- TODO: Improve function names and refactor
+-- TODO: Update README with config/install stuff
 -- TODO: Add config options for (dark color, bright color, should inject commands)
 
 -- NOTE: should only create a namespace if it's not already created when attaching to a buffer
@@ -12,50 +11,37 @@ local NAMESPACE = vim.api.nvim_create_namespace("tailwindcss-colors")
 
 -- Prefix ensures names do not collide with other plugins
 local HIGHLIGHT_NAME_PREFIX = "tailwindcss_colors"
-local HIGHLIGHT_MODE_NAMES = { background = "mb", foreground = "mf" }
 
 -- This table is used to store the names of highlight colors that have already
 -- been created, allowing us to reuse highlights even across multiple buffers,
 -- cutting down on the the amount of neovim command calls
 local HIGHLIGHT_CACHE = {}
 
---- Make a deterministic name for a highlight given these attributes
--- NOTE: this looks like lsp_documentColor_mf_FFAAFF
--- NOTE: prefix may be redundant, see how other plugins do it
-local function make_highlight_name(rgb, mode)
-  return table.concat({ HIGHLIGHT_NAME_PREFIX, HIGHLIGHT_MODE_NAMES[mode], rgb }, "_")
-end
-
-local function create_highlight(rgb_hex, options)
+local function create_highlight(color)
   -- pull highlight from cache if it exists to avoid any neovim commands
   -- otherwise run the commands and store the name as a cache
-  local mode = options.mode or "background"
-  local cache_key = table.concat({ HIGHLIGHT_MODE_NAMES[mode], rgb_hex }, "_")
-  local highlight_name = HIGHLIGHT_CACHE[cache_key]
+  local highlight_name = HIGHLIGHT_CACHE[color.hex]
 
   if highlight_name then
     return highlight_name
   end
 
-  -- Create the highlight
-  -- NOTE: our highlights are only going to be background highlights
-  highlight_name = make_highlight_name(rgb_hex, mode)
-  if mode == "foreground" then
-    vim.api.nvim_command(string.format("highlight %s guifg=#%s", highlight_name, rgb_hex))
+
+  -- determine which foreground color to use (dark or light)
+  local fg_color
+  if colors.color_is_bright(color) then
+    fg_color = "Black"
   else
-    -- NOTE: we already had these numbers before, and are now converting back to them
-    -- we should run this algorithm earlier and attach information about brightness
-    local r, g, b = rgb_hex:sub(1, 2), rgb_hex:sub(3, 4), rgb_hex:sub(5, 6)
-    r, g, b = tonumber(r, 16), tonumber(g, 16), tonumber(b, 16)
-    local fg_color
-    if colors.color_is_bright(r, g, b) then
-      fg_color = "Black"
-    else
-      fg_color = "White"
-    end
-    vim.api.nvim_command(string.format("highlight %s guifg=%s guibg=#%s", highlight_name, fg_color, rgb_hex))
+    fg_color = "White"
   end
-  HIGHLIGHT_CACHE[cache_key] = highlight_name
+
+  highlight_name = table.concat({ HIGHLIGHT_NAME_PREFIX, color.hex }, "_")
+
+  -- create the highlight
+  vim.api.nvim_command(string.format("highlight %s guifg=%s guibg=#%s", highlight_name, fg_color, color.hex))
+
+  -- add the highlight to the cache to skip work next time
+  HIGHLIGHT_CACHE[color.hex] = highlight_name
 
   return highlight_name
 end
@@ -143,7 +129,7 @@ local function buf_set_highlights(bufnr, lsp_data, options)
       cache.len = cache.len + 1
 
       -- create the highlight
-      local highlight_name = create_highlight(color_range_info.color.hex, options)
+      local highlight_name = create_highlight(color_range_info.color)
 
       -- extract range data
       local range = color_range_info.range
@@ -195,13 +181,11 @@ function M.buf_attach(bufnr, options)
 
   options = options or {}
 
-  -- TODO: server ready time may vary
-  -- so try sending a bunch of documentColor requests until it responds
-  -- without an error, or a timeout is reached?
-  -- NOTE: try logging in the clearColors handler to see when it's sent (maybe when the server is ready?)
+  -- 200ms debounce workaround, the server needs some time go get ready
+  -- not defering for 200ms results in the server not responding at all
   vim.defer_fn(function()
     M.update_highlight(bufnr, options)
-  end, 300)
+  end, 200)
 
   -- setup a hook for any changes in the buffer
   vim.api.nvim_buf_attach(bufnr, false, {

@@ -41,13 +41,13 @@ end
 -- Determine whether to use black or white text
 -- Ref: https://stackoverflow.com/a/1855903/837964
 -- https://stackoverflow.com/questions/596216/formula-to-determine-brightness-of-rgb-color
-M.color_is_bright = function (r, g, b)
+M.color_is_bright = function (color)
   -- Counting the perceptive luminance - human eye favors green color
-  local luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  local luminance = (0.299 * color.red + 0.587 * color.green + 0.114 * color.blue) / 255
   if luminance > 0.5 then
-    return true -- Bright colors, black font
+    return true -- Bright colors, use dark text
   else
-    return false -- Dark colors, white font
+    return false -- Dark colors, use light text
   end
 end
 
