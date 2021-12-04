@@ -5,8 +5,7 @@ This plugin highlights Tailwind CSS class names when [@tailwindcss/language-serv
 
 --- 
 
-Image here to show off the plugin
-
+![Demo.gif](https://i.imgur.com/hDbxvBJ.gif)
 ---
 # Installation
 
