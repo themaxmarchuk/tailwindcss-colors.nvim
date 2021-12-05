@@ -1,16 +1,11 @@
 -- Credits: contains some code snippets from https://github.com/norcalli/nvim-colorizer.lua
 local colors = require("tailwindcss-colors.colors")
 
--- TODO: Remove some comments, clean things up
--- TODO: Improve function names and refactor
 -- TODO: Update README with config/install stuff
--- TODO: Add config options for (dark color, bright color, should inject commands)
 
--- NOTE: should only create a namespace if it's not already created when attaching to a buffer
 local NAMESPACE = vim.api.nvim_create_namespace("tailwindcss-colors")
 
--- Prefix ensures names do not collide with other plugins
-local HIGHLIGHT_NAME_PREFIX = "tailwindcss_colors"
+local HIGHLIGHT_NAME_PREFIX = "TailwindCssColor"
 
 -- This table is used to store the names of highlight colors that have already
 -- been created, allowing us to reuse highlights even across multiple buffers,
@@ -21,16 +16,16 @@ local HIGHLIGHT_CACHE = {}
 local user_config = {
   colors = {
     dark = "#000000",  -- dark text color
-    light = "#FFFFFF", -- light test color
+    light = "#FFFFFF", -- light text color
   },
   commands = true -- should add commands
-  -- TailwindColorsAttach
-  -- TailwindColorsDetach
 }
 
+-- Creates highlights if they don't already exist
 local function create_highlight(color)
-  -- pull highlight from cache if it exists to avoid any neovim commands
-  -- otherwise run the commands and store the name as a cache
+  -- pull highlight from cache if it exists to avoid neovim highlight commands
+  -- otherwise create the highlight and store the name (computed from the color)
+  -- in the cache
   local highlight_name = HIGHLIGHT_CACHE[color.hex]
 
   if highlight_name then
@@ -60,20 +55,10 @@ end
 -- Stores attached buffers
 local ATTACHED_BUFFERS = {}
 
--- Stores latest hashed color data received from the LSP for each buffer
--- hashing is done to save space and make comparisons faster
--- this allows us to limit updates to buffer highlights
+-- Stores latest color data received from the LSP for each buffer
+-- since lua tables use hashing under the hood, lookups should be fast
 --
--- since hashing entire objects is annoying due to the data being unordered
--- we can just create a string based on converted color data
--- this will still allow us to limit buffer highlight updates
--- but will require color reprocessing (hex strings) and string concatenation
---
--- once color info is converted, we can store packed data for comparisons
--- could also even hash this data if we wanted to save on memory space and speed
--- technically there is hashing going on already in the tables, so we use the computed data
--- as a key, however we also need a list of active buffers
---
+-- The layout looks like this: (the keys correspond to buffer numbers)
 -- LSP_CACHE = {
 --   [1] = { len = 1, data = {... CACHE HASH TABLE ...} },
 --   [2] = { len = 5, data = {... CACHE HASH TABLE ...} },
@@ -91,6 +76,8 @@ local function make_lsp_cache_key(lsp_data)
     lsp_data.range.start.line
 end
 
+-- Updates the highlights in a buffer with the given lsp_data
+-- checks cache to see if updates are required
 local function buf_set_highlights(bufnr, lsp_data)
   -- add hex data to each color entry
   for _, color_range_info in ipairs(lsp_data) do
@@ -101,9 +88,7 @@ local function buf_set_highlights(bufnr, lsp_data)
   local cache_invalid = false
 
   -- check to see if cache exists
-  if not cache then
-    cache_invalid = true
-  else
+  if cache then
     -- if it does, try to validate the cache
     -- check the length of the cache compared to the length of lsp_data
     if cache.len ~= #lsp_data then
@@ -121,6 +106,9 @@ local function buf_set_highlights(bufnr, lsp_data)
         end
       end
     end
+  else
+    -- otherwise empty cache is "invalid"
+    cache_invalid = true
   end
 
   -- if the cache is invalid, it must be rebuilt, and the highlights should be updated
@@ -155,7 +143,7 @@ local function buf_set_highlights(bufnr, lsp_data)
 end
 
 
--- Returns current buffer if we find a 0 or nil
+-- Returns current buffer if 0 or nil
 local function expand_bufnr(bufnr)
   if bufnr == 0 or bufnr == nil then
     return vim.api.nvim_get_current_buf()
@@ -178,7 +166,7 @@ end
 
 local M = {}
 
--- setup takes an optional plugin_config and adds commands if they are enabled
+-- Takes an optional plugin_config and adds commands if they are enabled
 -- otherwise default settings are used, and calling the function is only necessary
 -- if you want to add commands
 function M.setup(plugin_config)
@@ -188,15 +176,16 @@ function M.setup(plugin_config)
   if user_config.commands then
     vim.cmd("command! TailwindColorsAttach lua require('tailwindcss-colors').buf_attach()")
     vim.cmd("command! TailwindColorsDetach lua require('tailwindcss-colors').buf_detach()")
-    vim.cmd("command! TailwindColorsStatus lua require('tailwindcss-colors').print_status()")
+    vim.cmd("command! TailwindColorsToggle lua require('tailwindcss-colors').buf_toggle()")
+    vim.cmd("command! TailwindColorsRefresh lua require('tailwindcss-colors').update_highlight(vim.api.nvim_get_current_buf())")
   end
 end
 
---- Can be called to manually update the color highlighting
+-- Updates the highlights in a buffer if the lsp responds with valid color data
 function M.update_highlight(bufnr)
-  -- make_text_document_params will get us the current document uri
+  -- get document uri
   local params = { textDocument = vim.lsp.util.make_text_document_params() }
-  -- send this to the lsp, and setup a callback that will trigger a highlight update
+  -- send this to the lsp
   vim.lsp.buf_request(bufnr, "textDocument/documentColor", params, function(err, result, _, _)
     -- if there were no errors, update highlights
     if err == nil and result ~= nil then
@@ -205,9 +194,8 @@ function M.update_highlight(bufnr)
   end)
 end
 
--- This function attaches to a buffer and reacts to changes in buffer state
+-- This function attaches to a buffer, updating highlights on change
 function M.buf_attach(bufnr)
-  -- if bufnr is 0 or nil, use the current buffer
   bufnr = expand_bufnr(bufnr)
 
   -- if we have already attached to this buffer do nothing
@@ -218,7 +206,7 @@ function M.buf_attach(bufnr)
   ATTACHED_BUFFERS[bufnr] = true
 
   -- 200ms debounce workaround, the server needs some time go get ready
-  -- not defering for 200ms results in the server not responding at all
+  -- not deferring for 200ms results in the server not responding at all
   vim.defer_fn(function()
     M.update_highlight(bufnr)
   end, 200)
@@ -227,6 +215,7 @@ function M.buf_attach(bufnr)
   vim.api.nvim_buf_attach(bufnr, false, {
     on_lines = function()
       -- if the current buffer is not attached, then tell nvim to detach our function
+      -- see :help nvim_buf_attach (on_lines section)
       if not ATTACHED_BUFFERS[bufnr] then
         return true
       end
@@ -247,14 +236,8 @@ function M.buf_attach(bufnr)
   })
 end
 
--- for debug only
-function M.print_status()
-  print(vim.inspect({ LSP_CACHE, ATTACHED_BUFFERS }))
-end
-
 -- Detaches from the buffer
 function M.buf_detach(bufnr)
-  -- if bufnr is 0 or nil, use the current buffer
   bufnr = expand_bufnr(bufnr)
   -- clear highlights
   vim.api.nvim_buf_clear_namespace(bufnr, NAMESPACE, 0, -1)
@@ -262,6 +245,18 @@ function M.buf_detach(bufnr)
   ATTACHED_BUFFERS[bufnr] = nil
   -- delete the cache
   LSP_CACHE[bufnr] = nil
+end
+
+-- Attaches or detaches from the current buffer
+function M.buf_toggle()
+  local bufnr = expand_bufnr(0)
+
+  if ATTACHED_BUFFERS[bufnr] then
+    M.buf_detach(bufnr)
+    return
+  end
+
+  M.buf_attach(bufnr)
 end
 
 return M
