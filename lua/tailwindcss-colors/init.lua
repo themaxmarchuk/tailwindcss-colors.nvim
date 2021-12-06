@@ -1,8 +1,6 @@
 -- Credits: contains some code snippets from https://github.com/norcalli/nvim-colorizer.lua
 local colors = require("tailwindcss-colors.colors")
 
--- TODO: Update README with config/install stuff
-
 local NAMESPACE = vim.api.nvim_create_namespace("tailwindcss-colors")
 
 local HIGHLIGHT_NAME_PREFIX = "TailwindCssColor"
