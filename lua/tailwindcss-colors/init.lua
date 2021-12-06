@@ -173,11 +173,12 @@ function M.setup(plugin_config)
   -- merge passed in settings with defaults
   user_config = merge(user_config, plugin_config or {})
 
-  if user_config.commands then
-    vim.cmd("command! TailwindColorsAttach lua require('tailwindcss-colors').buf_attach()")
-    vim.cmd("command! TailwindColorsDetach lua require('tailwindcss-colors').buf_detach()")
-    vim.cmd("command! TailwindColorsToggle lua require('tailwindcss-colors').buf_toggle()")
-    vim.cmd("command! TailwindColorsRefresh lua require('tailwindcss-colors').update_highlight(vim.api.nvim_get_current_buf())")
+  -- remove commands if they should be disabled
+  if not user_config.commands then
+    vim.cmd("delcommand TailwindColorsAttach")
+    vim.cmd("delcommand TailwindColorsDetach")
+    vim.cmd("delcommand TailwindColorsRefresh")
+    vim.cmd("delcommand TailwindColorsToggle")
   end
 end
 
