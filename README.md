@@ -7,21 +7,16 @@ This plugin highlights Tailwind CSS class names when [@tailwindcss/language-serv
 
 ## Requirements
 
-- [Neovim 0.5+](https://github.com/neovim/neovim) (version requirement may go up for new features)
+- [Neovim 0.5+](https://github.com/neovim/neovim)
 - [@tailwindcss/language-server](https://github.com/tailwindlabs/tailwindcss-intellisense)
   
   Can be installed with
   ```shell
   npm install -g @tailwindcss/language-server
   ```
-  Note: if you have issues with @tailwindcss/language-server try using an older version.
-  ```shell
-  npm install -g @tailwindcss/language-server@0.0.4
-  ```
-
   or with [nvim-lsp-installer](https://github.com/williamboman/nvim-lsp-installer)
   
-  Don't for get to configure it after installation (via [nvim-lspconfig](https://github.com/neovim/nvim-lspconfig) for example)
+  Don't forget to configure it after installation (via [nvim-lspconfig](https://github.com/neovim/nvim-lspconfig) for example)
 
 ## Installation
 
@@ -31,8 +26,6 @@ Install using your favorite package manager (packer, vim-plug, etc).
 ```lua
 use {
   "themaxmarchuk/tailwindcss-colors.nvim",
-  -- don't load on startup
-  opt = true,
   -- load only on require("tailwindcss-colors")
   module = "tailwindcss-colors"
   -- run the setup function after plugin is loaded 
@@ -141,7 +134,8 @@ local user_config = {
 -- }
 -- (for lazy loading)
 
--- this will disable commands but keep the default colors for light and dark text
+-- For example, this will disable commands,
+-- but keep default colors for light/dark text
 require("tailwindcss-colors").setup({
   commands = false
 })
@@ -171,11 +165,9 @@ Toggles the highlighting in the current buffer. (same as attach/detach)
 
 This is my first neovim plugin, and my first time writing any lua.
 
-Have an idea? 
-
-See a better way to do something?
-
-Found a bug?
+* Have an idea? 
+* See a better way to do something?
+* Found a bug?
 
 Feel free to [submit a PR](https://github.com/themaxmarchuk/tailwindcss-colors.nvim/pulls).
 
