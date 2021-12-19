@@ -162,7 +162,7 @@ end
 local M = {}
 
 -- Takes an optional plugin_config, updates internal config and
--- removes commands they are disabled
+-- removes commands if they are disabled
 function M.setup(plugin_config)
    -- merge passed in settings with defaults
    user_config = merge(user_config, plugin_config or {})
