@@ -171,5 +171,10 @@ This is my first neovim plugin, and my first time writing any lua.
 
 Feel free to [submit a PR](https://github.com/themaxmarchuk/tailwindcss-colors.nvim/pulls).
 
+## Some Ideas (Roadmap?)
+* Optionally watch tailwind config for changes and refresh all buffers
+* [nvim-cmp](https://github.com/hrsh7th/nvim-cmp) colors in completion list (similar to lspkind)
+* Extmark (nvim virtual text) based color squares just like vscode?
+
 ## Credits
 Inspired by [nvim-colorizer.lua](https://github.com/norcalli/nvim-colorizer.lua) and [kabouzeid](https://github.com/kabouzeid)'s [dotfiles](https://github.com/kabouzeid/dotfiles/blob/main/config/nvim/lua/lsp-documentcolors.lua)
