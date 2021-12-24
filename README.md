@@ -155,7 +155,9 @@ Detaches from the current buffer.
 
 > `:TailwindColorsRefresh`
 
-Refreshes highlights in the current buffer (useful for auto commands)
+Refreshes highlights in the current buffer.
+
+In order to keep the plugin fast, it only updates lines that actually change. This means that if you update your tailwind config, the colors won't be updated unless you run this command.
 
 > `:TailwindColorsToggle`
 
