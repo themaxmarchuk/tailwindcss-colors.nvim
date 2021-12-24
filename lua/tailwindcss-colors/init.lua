@@ -57,7 +57,7 @@ local ATTACHED_BUFFERS = {}
 
 local function buf_set_highlights(bufnr, lsp_data, change_data)
    -- set the range to the entire buffer if there is no change_data
-   local firstline, new_lastline = 0, 0
+   local firstline, new_lastline = 0, -1
 
    if change_data then
       firstline = change_data.firstline
