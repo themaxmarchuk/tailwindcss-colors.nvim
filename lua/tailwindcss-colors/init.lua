@@ -157,8 +157,6 @@ function M.update_highlight(bufnr, change_data)
    end, bufnr)
 end
 
-
-
 ---This function attaches to a buffer, updating highlights on change
 ---It filters for tailwindcss lsp client
 ---@param client table A |vim.lsp.client| object
