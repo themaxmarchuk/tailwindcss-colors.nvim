@@ -157,7 +157,23 @@ function M.update_highlight(bufnr, change_data)
    end, bufnr)
 end
 
--- This function attaches to a buffer, updating highlights on change
+---This function attaches to a buffer, updating highlights on change
+---It filters for tailwindcss lsp client
+---@param client table A |vim.lsp.client| object
+---@param bufnr number
+function M.on_attach(client, bufnr)
+   if not client then
+    vim.notify_once "tailwindcss-colors: on_attach client tried to attach to a nil client"
+    return
+   end
+
+   if client.name == "tailwindcss" then
+      M.buf_attach(bufnr)
+   end
+end
+
+---This function attaches to a buffer, updating highlights on change
+---@param bufnr number
 function M.buf_attach(bufnr)
    bufnr = expand_bufnr(bufnr)
 
@@ -222,7 +238,8 @@ function M.buf_attach(bufnr)
    })
 end
 
--- Detaches from the buffer
+---Detaches from the buffer
+---@param bufnr number
 function M.buf_detach(bufnr)
    bufnr = expand_bufnr(bufnr)
    -- clear highlights
