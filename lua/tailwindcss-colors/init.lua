@@ -157,6 +157,15 @@ function M.update_highlight(bufnr, change_data)
    end, bufnr)
 end
 
+
+-- This function attaches to a buffer, updating highlights on change
+-- It filters for tailwindcss lsp client
+function M.on_attach(client, bufnr)
+   if client.name == "tailwindcss" then
+      M.buf_attach(bufnr)
+   end
+end
+
 -- This function attaches to a buffer, updating highlights on change
 function M.buf_attach(bufnr)
    bufnr = expand_bufnr(bufnr)
